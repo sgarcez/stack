@@ -10,13 +10,24 @@
 </head>
 
 <body>
-  <div id="app">
+  <div id="login-screen" class="hidden">
+    <form id="login-form">
+      <h1>Stack</h1>
+      <input type="text" id="login-username" placeholder="Username" autocomplete="username" required>
+      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit">Sign in</button>
+      <p id="login-error" class="login-error"></p>
+    </form>
+  </div>
+
+  <div id="app" class="hidden">
     <aside id="sidebar">
       <header class="sidebar-header">
         <h1>Stack</h1>
         <button id="btn-all-entries" title="All entries">All</button>
       </header>
       <nav id="feed-tree"></nav>
+      <button id="btn-logout" class="sidebar-logout">Sign out</button>
     </aside>
 
     <main id="entry-list">

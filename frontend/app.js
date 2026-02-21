@@ -8,16 +8,78 @@ let currentEntries = [];
 let currentEntry = null;
 let currentFilter = {}; // { feed_id, category_id }
 const app = document.getElementById("app");
+const loginScreen = document.getElementById("login-screen");
 
 function setView(view) {
   app.dataset.view = view;
 }
 
+// ── Auth ────────────────────────────────────────
+
+async function apiFetch(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) {
+    showLogin();
+    throw new Error("unauthorized");
+  }
+  return res;
+}
+
+function showLogin() {
+  loginScreen.classList.remove("hidden");
+  app.classList.add("hidden");
+}
+
+function showApp() {
+  loginScreen.classList.add("hidden");
+  app.classList.remove("hidden");
+}
+
 // ── Init ────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
-  await loadSidebar();
-  loadEntries({}); // load all entries initially
+  // Check if already authenticated
+  try {
+    const res = await fetch(`${API}/api/me`);
+    if (res.ok) {
+      await startApp();
+    } else {
+      showLogin();
+    }
+  } catch {
+    showLogin();
+  }
+
+  // Login form
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("login-username").value;
+    const password = document.getElementById("login-password").value;
+    const errorEl = document.getElementById("login-error");
+    errorEl.textContent = "";
+
+    try {
+      const res = await fetch(`${API}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        errorEl.textContent = "Invalid username or password";
+        return;
+      }
+      document.getElementById("login-form").reset();
+      await startApp();
+    } catch {
+      errorEl.textContent = "Connection failed";
+    }
+  });
+
+  // Logout
+  document.getElementById("btn-logout").addEventListener("click", async () => {
+    await fetch(`${API}/api/logout`, { method: "POST" });
+    showLogin();
+  });
 
   document.getElementById("btn-all-entries").addEventListener("click", () => {
     currentFilter = {};
@@ -45,10 +107,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 // ── Sidebar ─────────────────────────────────────
 
+async function startApp() {
+  showApp();
+  await loadSidebar();
+  loadEntries({});
+}
+
 async function loadSidebar() {
   const [catRes, feedRes] = await Promise.all([
-    fetch(`${API}/api/categories`).then((r) => r.json()),
-    fetch(`${API}/api/feeds`).then((r) => r.json()),
+    apiFetch(`${API}/api/categories`).then((r) => r.json()),
+    apiFetch(`${API}/api/feeds`).then((r) => r.json()),
   ]);
 
   categories = catRes;
@@ -125,7 +193,7 @@ function clearActiveFeed() {
 
 async function loadEntries(params) {
   const qs = new URLSearchParams(params);
-  const res = await fetch(`${API}/api/entries?${qs}`);
+  const res = await apiFetch(`${API}/api/entries?${qs}`);
   const data = await res.json();
 
   currentEntries = data.entries || [];
@@ -177,7 +245,7 @@ function renderEntryList() {
 // ── Entry Content ───────────────────────────────
 
 async function showEntry(entryID) {
-  const res = await fetch(`${API}/api/entries/${entryID}`);
+  const res = await apiFetch(`${API}/api/entries/${entryID}`);
   currentEntry = await res.json();
 
   document.getElementById("entry-empty").style.display = "none";
@@ -201,7 +269,7 @@ async function showEntry(entryID) {
 
   // Auto-mark as read
   if (currentEntry.status === "unread") {
-    await fetch(`${API}/api/entries/${currentEntry.id}/toggle-status`, { method: "PUT" });
+    await apiFetch(`${API}/api/entries/${currentEntry.id}/toggle-status`, { method: "PUT" });
     currentEntry.status = "read";
     updateEntryButtons();
     // Update the list item
@@ -221,7 +289,7 @@ function updateEntryButtons() {
 
 async function toggleReadStatus() {
   if (!currentEntry) return;
-  await fetch(`${API}/api/entries/${currentEntry.id}/toggle-status`, { method: "PUT" });
+  await apiFetch(`${API}/api/entries/${currentEntry.id}/toggle-status`, { method: "PUT" });
   currentEntry.status = currentEntry.status === "read" ? "unread" : "read";
   updateEntryButtons();
 
@@ -231,7 +299,7 @@ async function toggleReadStatus() {
 
 async function toggleStarred() {
   if (!currentEntry) return;
-  await fetch(`${API}/api/entries/${currentEntry.id}/toggle-starred`, { method: "PUT" });
+  await apiFetch(`${API}/api/entries/${currentEntry.id}/toggle-starred`, { method: "PUT" });
   currentEntry.starred = !currentEntry.starred;
   updateEntryButtons();
 }

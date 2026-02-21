@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"io/fs"
 	"log"
@@ -19,44 +23,67 @@ var frontendFS embed.FS
 //go:embed themes
 var themesFS embed.FS
 
-var client *miniflux.Client
-var theme []byte
+var (
+	minifluxURL string
+	theme       []byte
+	aesGCM      cipher.AEAD
+)
+
+const sessionCookie = "stack_session"
 
 func main() {
-	minifluxURL := os.Getenv("MINIFLUX_URL")
+	minifluxURL = os.Getenv("MINIFLUX_URL")
 	if minifluxURL == "" {
 		log.Fatal("MINIFLUX_URL environment variable is required")
 	}
-	minifluxAPIKey := os.Getenv("MINIFLUX_API_KEY")
-	if minifluxAPIKey == "" {
-		log.Fatal("MINIFLUX_API_KEY environment variable is required")
+
+	// Encryption key for session cookies (32 bytes hex = 16-byte AES-128 key).
+	secret := os.Getenv("STACK_SECRET")
+	if secret == "" {
+		// Auto-generate a key (sessions won't survive restarts without a fixed key).
+		b := make([]byte, 16)
+		rand.Read(b)
+		secret = hex.EncodeToString(b)
+		log.Println("No STACK_SECRET set — generated ephemeral key (sessions lost on restart)")
+	}
+	key, err := hex.DecodeString(secret)
+	if err != nil || len(key) != 16 {
+		log.Fatal("STACK_SECRET must be 32 hex characters (16 bytes)")
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	aesGCM, err = cipher.NewGCM(block)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	themeName := os.Getenv("STACK_THEME")
 	if themeName == "" {
 		themeName = "default"
 	}
-	var err error
 	theme, err = themesFS.ReadFile("themes/" + themeName + ".css")
 	if err != nil {
 		log.Fatalf("unknown theme %q: %v", themeName, err)
 	}
 	log.Printf("Using theme: %s", themeName)
 
-	client = miniflux.NewClient(minifluxURL, minifluxAPIKey)
-
-	frontendContent, subErr := fs.Sub(frontendFS, "frontend")
-	if subErr != nil {
-		log.Fatal(subErr)
+	frontendContent, err := fs.Sub(frontendFS, "frontend")
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/theme.css", handleTheme)
-	mux.HandleFunc("/api/categories", handleCategories)
-	mux.HandleFunc("/api/feeds", handleFeeds)
-	mux.HandleFunc("/api/entries", handleEntries)
-	mux.HandleFunc("/api/entries/", handleEntry)
-	// Serve embedded font files from themes/fonts/ at /fonts/
+	mux.HandleFunc("/api/login", handleLogin)
+	mux.HandleFunc("/api/logout", handleLogout)
+	mux.HandleFunc("/api/me", requireAuth(handleMe))
+	mux.HandleFunc("/api/categories", requireAuth(handleCategories))
+	mux.HandleFunc("/api/feeds", requireAuth(handleFeeds))
+	mux.HandleFunc("/api/entries", requireAuth(handleEntries))
+	mux.HandleFunc("/api/entries/", requireAuth(handleEntry))
+
 	fontsContent, err := fs.Sub(themesFS, "themes/fonts")
 	if err != nil {
 		log.Fatal(err)
@@ -70,7 +97,60 @@ func main() {
 	}
 }
 
-// noCache wraps a handler to prevent browser caching of static assets.
+// ── Cookie encryption ───────────────────────────
+
+func encrypt(plaintext string) string {
+	nonce := make([]byte, aesGCM.NonceSize())
+	rand.Read(nonce)
+	ciphertext := aesGCM.Seal(nonce, nonce, []byte(plaintext), nil)
+	return hex.EncodeToString(ciphertext)
+}
+
+func decrypt(encoded string) (string, error) {
+	data, err := hex.DecodeString(encoded)
+	if err != nil {
+		return "", err
+	}
+	nonceSize := aesGCM.NonceSize()
+	if len(data) < nonceSize {
+		return "", err
+	}
+	plaintext, err := aesGCM.Open(nil, data[:nonceSize], data[nonceSize:], nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+
+// getClient decrypts credentials from the session cookie and returns a miniflux client.
+func getClient(r *http.Request) *miniflux.Client {
+	cookie, err := r.Cookie(sessionCookie)
+	if err != nil {
+		return nil
+	}
+	creds, err := decrypt(cookie.Value)
+	if err != nil {
+		return nil
+	}
+	parts := strings.SplitN(creds, "\x00", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	return miniflux.NewClient(minifluxURL, parts[0], parts[1])
+}
+
+// ── Middleware ───────────────────────────────────
+
+func requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if getClient(r) == nil {
+			writeError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func noCache(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -79,6 +159,81 @@ func noCache(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 	})
 }
+
+// ── Auth handlers ───────────────────────────────
+
+// POST /api/login  { "username": "...", "password": "..." }
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var creds struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		writeError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate credentials against Miniflux.
+	client := miniflux.NewClient(minifluxURL, creds.Username, creds.Password)
+	user, err := client.Me()
+	if err != nil {
+		writeError(w, "invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Encrypt username + password into the cookie value.
+	token := encrypt(creds.Username + "\x00" + creds.Password)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookie,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	writeJSON(w, map[string]string{"username": user.Username})
+}
+
+// POST /api/logout
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookie,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+
+	writeJSON(w, map[string]string{"ok": "true"})
+}
+
+// GET /api/me — returns current user info (also used to check auth status)
+func handleMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	client := getClient(r)
+	user, err := client.Me()
+	if err != nil {
+		writeError(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]string{"username": user.Username})
+}
+
+// ── Utility ─────────────────────────────────────
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -93,11 +248,13 @@ func writeError(w http.ResponseWriter, msg string, code int) {
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-// GET /theme.css — serves the active theme's CSS
+// GET /theme.css
 func handleTheme(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	w.Write(theme)
 }
+
+// ── API handlers ────────────────────────────────
 
 // GET /api/categories
 func handleCategories(w http.ResponseWriter, r *http.Request) {
@@ -105,13 +262,12 @@ func handleCategories(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	client := getClient(r)
 	categories, err := client.CategoriesWithCounters()
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-
 	writeJSON(w, categories)
 }
 
@@ -121,14 +277,12 @@ func handleFeeds(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	client := getClient(r)
 	feeds, err := client.Feeds()
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-
-	// Also fetch counters for unread counts per feed
 	counters, err := client.FetchCounters()
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadGateway)
@@ -139,7 +293,6 @@ func handleFeeds(w http.ResponseWriter, r *http.Request) {
 		*miniflux.Feed
 		UnreadCount int `json:"unread_count"`
 	}
-
 	result := make([]feedWithCount, len(feeds))
 	for i, f := range feeds {
 		result[i] = feedWithCount{
@@ -147,7 +300,6 @@ func handleFeeds(w http.ResponseWriter, r *http.Request) {
 			UnreadCount: counters.UnreadCounters[f.ID],
 		}
 	}
-
 	writeJSON(w, result)
 }
 
@@ -157,6 +309,7 @@ func handleEntries(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	client := getClient(r)
 
 	q := r.URL.Query()
 	filter := &miniflux.Filter{}
@@ -221,7 +374,7 @@ func handleEntries(w http.ResponseWriter, r *http.Request) {
 //	PUT  /api/entries/{id}/toggle-status  — toggle read/unread
 //	PUT  /api/entries/{id}/toggle-starred — toggle starred
 func handleEntry(w http.ResponseWriter, r *http.Request) {
-	// Parse: /api/entries/{id}[/action]
+	client := getClient(r)
 	path := strings.TrimPrefix(r.URL.Path, "/api/entries/")
 	parts := strings.SplitN(path, "/", 2)
 
@@ -246,7 +399,6 @@ func handleEntry(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, entry)
 
 	case action == "toggle-status" && r.Method == http.MethodPut:
-		// First get the entry to check current status
 		entry, err := client.Entry(entryID)
 		if err != nil {
 			writeError(w, err.Error(), http.StatusBadGateway)
