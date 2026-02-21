@@ -7,6 +7,11 @@ let feeds = [];
 let currentEntries = [];
 let currentEntry = null;
 let currentFilter = {}; // { feed_id, category_id }
+const app = document.getElementById("app");
+
+function setView(view) {
+  app.dataset.view = view;
+}
 
 // ── Init ────────────────────────────────────────
 
@@ -19,7 +24,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("entry-list-title").textContent = "All Entries";
     clearActiveFeed();
     loadEntries({});
+    setView("list");
   });
+
+  document.getElementById("btn-back-feeds").addEventListener("click", () => setView("sidebar"));
+  document.getElementById("btn-back-entries").addEventListener("click", () => setView("list"));
 
   document.getElementById("btn-toggle-read").addEventListener("click", toggleReadStatus);
   document.getElementById("btn-toggle-star").addEventListener("click", toggleStarred);
@@ -78,6 +87,7 @@ function renderSidebar() {
       document.getElementById("entry-list-title").textContent = cat.title;
       clearActiveFeed();
       loadEntries({ category_id: cat.id });
+      setView("list");
     });
     section.appendChild(label);
 
@@ -98,6 +108,7 @@ function renderSidebar() {
         clearActiveFeed();
         item.classList.add("active");
         loadEntries({ feed_id: f.id });
+        setView("list");
       });
       section.appendChild(item);
     }
@@ -156,6 +167,7 @@ function renderEntryList() {
       document.querySelectorAll(".entry-item.active").forEach((el) => el.classList.remove("active"));
       item.classList.add("active");
       showEntry(entry.id);
+      setView("content");
     });
 
     container.appendChild(item);

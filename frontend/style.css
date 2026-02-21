@@ -325,3 +325,78 @@ body {
 #entry-body h6 {
     margin: 16px 0 8px;
 }
+
+/* ── Back buttons (hidden on desktop) ────────── */
+
+.btn-back {
+    display: none;
+    font-size: 13px;
+    padding: 4px 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+    margin-bottom: 8px;
+}
+
+/* ── Mobile ──────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .btn-back {
+        display: block;
+    }
+
+    #app {
+        position: relative;
+    }
+
+    #sidebar,
+    #entry-list,
+    #entry-content {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        min-width: 100%;
+        border: none;
+        transition: transform 0.2s ease;
+        background: var(--bg);
+    }
+
+    #sidebar {
+        background: var(--bg-sidebar);
+    }
+
+    /* Sidebar = layer 0, list = layer 1, content = layer 2 */
+    #sidebar {
+        z-index: 1;
+        transform: translateX(0);
+    }
+
+    #entry-list {
+        z-index: 2;
+        transform: translateX(100%);
+    }
+
+    #entry-content {
+        z-index: 3;
+        transform: translateX(100%);
+    }
+
+    /* When showing entry list */
+    #app[data-view="list"] #entry-list {
+        transform: translateX(0);
+    }
+
+    /* When showing entry content */
+    #app[data-view="content"] #entry-list {
+        transform: translateX(0);
+    }
+
+    #app[data-view="content"] #entry-content {
+        transform: translateX(0);
+    }
+
+    #entry-view {
+        padding: 16px;
+    }
+}
