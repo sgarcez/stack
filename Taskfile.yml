@@ -8,12 +8,12 @@ tasks:
     cmds:
       - go build -o stack .
 
-  run:
-    desc: Run Stack (UI on :8080, API on :8081)
+  dev:
+    desc: Run Stack on port 8080
     cmds:
       - go run main.go
 
-  dev:
+  build-and-run:
     desc: Build and run Stack
     cmds:
       - task: build

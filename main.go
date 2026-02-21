@@ -30,45 +30,21 @@ func main() {
 
 	client = miniflux.NewClient(minifluxURL, minifluxAPIKey)
 
-	// API server on :8081
-	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("/api/categories", withCORS(handleCategories))
-	apiMux.HandleFunc("/api/feeds", withCORS(handleFeeds))
-	apiMux.HandleFunc("/api/entries", withCORS(handleEntries))
-	apiMux.HandleFunc("/api/entries/", withCORS(handleEntry))
-
-	// UI server on :8080
 	frontendContent, err := fs.Sub(frontendFS, "frontend")
 	if err != nil {
 		log.Fatal(err)
 	}
-	uiMux := http.NewServeMux()
-	uiMux.Handle("/", http.FileServer(http.FS(frontendContent)))
 
-	go func() {
-		log.Println("API server listening on :8081")
-		if err := http.ListenAndServe(":8081", apiMux); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/categories", handleCategories)
+	mux.HandleFunc("/api/feeds", handleFeeds)
+	mux.HandleFunc("/api/entries", handleEntries)
+	mux.HandleFunc("/api/entries/", handleEntry)
+	mux.Handle("/", http.FileServer(http.FS(frontendContent)))
 
-	log.Println("UI server listening on :8080")
-	if err := http.ListenAndServe(":8080", uiMux); err != nil {
+	log.Println("Listening on :8080")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)
-	}
-}
-
-// withCORS wraps a handler to allow cross-origin requests from the UI server.
-func withCORS(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next(w, r)
 	}
 }
 
