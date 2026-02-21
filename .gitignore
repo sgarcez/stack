@@ -1,0 +1,8 @@
+# Binary
+stack
+
+# Environment
+.env
+
+# macOS
+.DS_Store

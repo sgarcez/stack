@@ -1,0 +1,20 @@
+version: "3"
+
+dotenv: [".env"]
+
+tasks:
+  build:
+    desc: Build the Stack binary
+    cmds:
+      - go build -o stack .
+
+  run:
+    desc: Run Stack (UI on :8080, API on :8081)
+    cmds:
+      - go run main.go
+
+  dev:
+    desc: Build and run Stack
+    cmds:
+      - task: build
+      - ./stack

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stack — RSS Reader</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <header class="sidebar-header">
+        <h1>Stack</h1>
+        <button id="btn-all-entries" title="All entries">All</button>
+      </header>
+      <nav id="feed-tree"></nav>
+    </aside>
+
+    <main id="entry-list">
+      <header id="entry-list-header">
+        <h2 id="entry-list-title">All Entries</h2>
+      </header>
+      <div id="entries"></div>
+    </main>
+
+    <article id="entry-content">
+      <div id="entry-empty">Select an entry to read</div>
+      <div id="entry-view" class="hidden">
+        <header id="entry-header">
+          <h2 id="entry-title"></h2>
+          <div id="entry-meta">
+            <span id="entry-feed-name"></span>
+            <time id="entry-date"></time>
+          </div>
+          <div id="entry-actions">
+            <button id="btn-toggle-read">Mark as read</button>
+            <button id="btn-toggle-star">★ Star</button>
+            <a id="btn-open-original" href="#" target="_blank" rel="noopener">Open original</a>
+          </div>
+        </header>
+        <div id="entry-body"></div>
+      </div>
+    </article>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
