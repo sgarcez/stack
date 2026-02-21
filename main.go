@@ -16,7 +16,11 @@ import (
 //go:embed frontend
 var frontendFS embed.FS
 
+//go:embed themes
+var themesFS embed.FS
+
 var client *miniflux.Client
+var theme []byte
 
 func main() {
 	minifluxURL := os.Getenv("MINIFLUX_URL")
@@ -28,24 +32,52 @@ func main() {
 		log.Fatal("MINIFLUX_API_KEY environment variable is required")
 	}
 
+	themeName := os.Getenv("STACK_THEME")
+	if themeName == "" {
+		themeName = "default"
+	}
+	var err error
+	theme, err = themesFS.ReadFile("themes/" + themeName + ".css")
+	if err != nil {
+		log.Fatalf("unknown theme %q: %v", themeName, err)
+	}
+	log.Printf("Using theme: %s", themeName)
+
 	client = miniflux.NewClient(minifluxURL, minifluxAPIKey)
 
-	frontendContent, err := fs.Sub(frontendFS, "frontend")
-	if err != nil {
-		log.Fatal(err)
+	frontendContent, subErr := fs.Sub(frontendFS, "frontend")
+	if subErr != nil {
+		log.Fatal(subErr)
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/theme.css", handleTheme)
 	mux.HandleFunc("/api/categories", handleCategories)
 	mux.HandleFunc("/api/feeds", handleFeeds)
 	mux.HandleFunc("/api/entries", handleEntries)
 	mux.HandleFunc("/api/entries/", handleEntry)
-	mux.Handle("/", http.FileServer(http.FS(frontendContent)))
+	// Serve embedded font files from themes/fonts/ at /fonts/
+	fontsContent, err := fs.Sub(themesFS, "themes/fonts")
+	if err != nil {
+		log.Fatal(err)
+	}
+	mux.Handle("/fonts/", noCache(http.StripPrefix("/fonts/", http.FileServer(http.FS(fontsContent)))))
+	mux.Handle("/", noCache(http.FileServer(http.FS(frontendContent))))
 
 	log.Println("Listening on :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// noCache wraps a handler to prevent browser caching of static assets.
+func noCache(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		h.ServeHTTP(w, r)
+	})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -59,6 +91,12 @@ func writeError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// GET /theme.css — serves the active theme's CSS
+func handleTheme(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	w.Write(theme)
 }
 
 // GET /api/categories

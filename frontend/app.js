@@ -23,6 +23,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("btn-toggle-read").addEventListener("click", toggleReadStatus);
   document.getElementById("btn-toggle-star").addEventListener("click", toggleStarred);
+
+  document.addEventListener("keydown", (e) => {
+    // Don't hijack key events when focus is in an input
+    if (e.target.matches("input, textarea, [contenteditable]")) return;
+    if (e.key === "j" || e.key === "k") {
+      e.preventDefault();
+      selectEntryByOffset(e.key === "j" ? 1 : -1);
+    }
+  });
 });
 
 // ── Sidebar ─────────────────────────────────────
@@ -213,6 +222,29 @@ async function toggleStarred() {
   await fetch(`${API}/api/entries/${currentEntry.id}/toggle-starred`, { method: "PUT" });
   currentEntry.starred = !currentEntry.starred;
   updateEntryButtons();
+}
+
+// ── Keyboard navigation ─────────────────────────
+
+function selectEntryByOffset(offset) {
+  if (currentEntries.length === 0) return;
+
+  const activeEl = document.querySelector(".entry-item.active");
+  const activeId = activeEl ? Number(activeEl.dataset.entryId) : null;
+  const currentIndex = currentEntries.findIndex((e) => e.id === activeId);
+
+  const nextIndex = currentIndex === -1
+    ? (offset > 0 ? 0 : currentEntries.length - 1)
+    : Math.max(0, Math.min(currentEntries.length - 1, currentIndex + offset));
+
+  const nextEntry = currentEntries[nextIndex];
+  if (!nextEntry) return;
+
+  const nextEl = document.querySelector(`.entry-item[data-entry-id="${nextEntry.id}"]`);
+  if (nextEl) {
+    nextEl.click();
+    nextEl.scrollIntoView({ block: "nearest" });
+  }
 }
 
 // ── Utilities ───────────────────────────────────

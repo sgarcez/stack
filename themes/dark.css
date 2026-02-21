@@ -1,0 +1,19 @@
+/* Theme: dark */
+:root {
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --sidebar-width: 240px;
+    --list-width: 360px;
+
+    --border: #2d2d2d;
+    --bg: #1a1a1a;
+    --bg-sidebar: #111111;
+    --bg-hover: #252525;
+    --bg-active: #1e2a4a;
+
+    --text: #e5e5e5;
+    --text-muted: #999;
+    --text-dim: #555;
+
+    --accent: #818cf8;
+    --unread-badge: #818cf8;
+}
