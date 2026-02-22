@@ -4,9 +4,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -74,7 +76,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Generate a version hash for cache-busting asset URLs in index.html.
+	indexHTML, _ := frontendFS.ReadFile("frontend/index.html")
+	version := fmt.Sprintf("%x", sha256.Sum256(indexHTML))[:8]
+	indexWithVersion := strings.ReplaceAll(string(indexHTML), "__VERSION__", version)
+
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Write([]byte(indexWithVersion))
+			return
+		}
+		noCache(http.FileServer(http.FS(frontendContent))).ServeHTTP(w, r)
+	})
 	mux.HandleFunc("/theme.css", handleTheme)
 	mux.HandleFunc("/api/login", handleLogin)
 	mux.HandleFunc("/api/logout", handleLogout)
@@ -92,7 +108,6 @@ func main() {
 		log.Fatal(err)
 	}
 	mux.Handle("/fonts/", noCache(http.StripPrefix("/fonts/", http.FileServer(http.FS(fontsContent)))))
-	mux.Handle("/", noCache(http.FileServer(http.FS(frontendContent))))
 
 	port := os.Getenv("STACK_PORT")
 	if port == "" {
