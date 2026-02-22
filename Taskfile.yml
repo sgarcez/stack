@@ -3,15 +3,15 @@ version: "3"
 dotenv: [".env"]
 
 tasks:
+  dev:
+    desc: Run Stack
+    cmds:
+      - go run main.go
+
   build:
     desc: Build the Stack binary
     cmds:
       - go build -o stack .
-
-  dev:
-    desc: Run Stack on port 8080
-    cmds:
-      - go run main.go
 
   build-and-run:
     desc: Build and run Stack
