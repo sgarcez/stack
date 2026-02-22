@@ -276,12 +276,19 @@ document.getElementById("entries").addEventListener("scroll", (e) => {
 // ── Entry Content ───────────────────────────────
 
 async function showEntry(entryID) {
-  const res = await apiFetch(`${API}/api/entries/${entryID}`);
-  currentEntry = await res.json();
+  try {
+    const res = await apiFetch(`${API}/api/entries/${entryID}`);
+    currentEntry = await res.json();
+  } catch (e) {
+    document.getElementById("entry-title").textContent = "Failed to load";
+    document.getElementById("entry-body").innerHTML = `<p style="color:var(--text-dim)">Could not load entry. Check your connection and try again.</p>`;
+    return;
+  }
 
   document.getElementById("entry-empty").style.display = "none";
   const view = document.getElementById("entry-view");
   view.classList.remove("hidden");
+  document.getElementById("entry-content").scrollTop = 0;
 
   document.getElementById("entry-title").textContent = currentEntry.title;
   document.getElementById("entry-feed-name").textContent = currentEntry.feed?.title || "";
@@ -300,12 +307,13 @@ async function showEntry(entryID) {
 
   // Auto-mark as read
   if (currentEntry.status === "unread") {
-    await apiFetch(`${API}/api/entries/${currentEntry.id}/toggle-status`, { method: "PUT" });
-    currentEntry.status = "read";
-    updateEntryButtons();
-    // Update the list item
-    const listItem = document.querySelector(`.entry-item[data-entry-id="${currentEntry.id}"]`);
-    if (listItem) listItem.classList.add("read");
+    try {
+      await apiFetch(`${API}/api/entries/${currentEntry.id}/toggle-status`, { method: "PUT" });
+      currentEntry.status = "read";
+      updateEntryButtons();
+      const listItem = document.querySelector(`.entry-item[data-entry-id="${currentEntry.id}"]`);
+      if (listItem) listItem.classList.add("read");
+    } catch { /* non-critical, ignore */ }
   }
 }
 

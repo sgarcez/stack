@@ -11,10 +11,13 @@
 
 <body>
   <div id="login-screen" class="hidden">
-    <form id="login-form">
+    <form id="login-form" action="/api/login" method="post">
       <h1>Stack</h1>
-      <input type="text" id="login-username" placeholder="Username" autocomplete="username" required>
-      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" required>
+      <label for="login-username" class="sr-only">Username</label>
+      <input type="text" id="login-username" name="username" placeholder="Username" autocomplete="username" required>
+      <label for="login-password" class="sr-only">Password</label>
+      <input type="password" id="login-password" name="password" placeholder="Password" autocomplete="current-password"
+        required>
       <button type="submit">Sign in</button>
       <p id="login-error" class="login-error"></p>
     </form>

@@ -20,6 +20,17 @@
     background: var(--bg);
 }
 
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
 #login-form {
     width: 280px;
     display: flex;
@@ -507,7 +518,9 @@ body {
 }
 
 #entry-body iframe {
-    pointer-events: none;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    height: auto;
 }
 
 #entry-body pre {
