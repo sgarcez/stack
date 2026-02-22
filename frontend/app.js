@@ -84,15 +84,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   document.getElementById("btn-all-entries").addEventListener("click", () => {
-    currentFilter = {};
-    document.getElementById("entry-list-title").textContent = "All Entries";
-    clearActiveFeed();
-    loadEntries({});
-    setView("list");
+    location.hash = "/";
   });
 
   document.getElementById("btn-back-feeds").addEventListener("click", () => setView("sidebar"));
   document.getElementById("btn-back-entries").addEventListener("click", () => setView("list"));
+
+  window.addEventListener("hashchange", () => handleRoute());
 
   document.getElementById("btn-toggle-read").addEventListener("click", toggleReadStatus);
   document.getElementById("btn-toggle-star").addEventListener("click", toggleStarred);
@@ -118,7 +116,66 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function startApp() {
   showApp();
   await loadSidebar();
-  loadEntries({});
+  handleRoute();
+}
+
+async function handleRoute() {
+  const hash = location.hash.replace(/^#\/?/, "");
+  const [type, id] = hash.split("/");
+
+  // Close settings if open
+  closeSettings();
+
+  if (type === "feed" && id) {
+    const feedID = Number(id);
+    const feed = feeds.find((f) => f.id === feedID);
+    currentFilter = { feed_id: feedID };
+    document.getElementById("entry-list-title").textContent = feed?.title || "Feed";
+    clearActiveFeed();
+    const el = document.querySelector(`.feed-item[data-feed-id="${feedID}"]`);
+    if (el) el.classList.add("active");
+    await loadEntries({ feed_id: feedID });
+    setView("list");
+  } else if (type === "category" && id) {
+    const catID = Number(id);
+    const cat = categories.find((c) => c.id === catID);
+    currentFilter = { category_id: catID };
+    document.getElementById("entry-list-title").textContent = cat?.title || "Category";
+    clearActiveFeed();
+    await loadEntries({ category_id: catID });
+    setView("list");
+  } else if (type === "entry" && id) {
+    const entryID = Number(id);
+    await showEntry(entryID);
+    // Highlight the entry in the list if it's already there
+    document.querySelectorAll(".entry-item.active").forEach((el) => el.classList.remove("active"));
+    const existingEl = document.querySelector(`.entry-item[data-entry-id="${entryID}"]`);
+    if (existingEl) {
+      existingEl.classList.add("active");
+    } else if (currentEntry && currentEntry.feed_id) {
+      // Entry not in list (e.g. page refresh) — load its feed's entries
+      const feedID = currentEntry.feed_id;
+      const feed = feeds.find((f) => f.id === feedID);
+      currentFilter = { feed_id: feedID };
+      document.getElementById("entry-list-title").textContent = feed?.title || "Feed";
+      clearActiveFeed();
+      const feedEl = document.querySelector(`.feed-item[data-feed-id="${feedID}"]`);
+      if (feedEl) feedEl.classList.add("active");
+      await loadEntries({ feed_id: feedID });
+      const entryEl = document.querySelector(`.entry-item[data-entry-id="${entryID}"]`);
+      if (entryEl) {
+        document.querySelectorAll(".entry-item.active").forEach((el) => el.classList.remove("active"));
+        entryEl.classList.add("active");
+      }
+    }
+    setView("content");
+  } else {
+    currentFilter = {};
+    document.getElementById("entry-list-title").textContent = "All Entries";
+    clearActiveFeed();
+    loadEntries({});
+    setView("list");
+  }
 }
 
 async function loadSidebar() {
@@ -159,11 +216,7 @@ function renderSidebar() {
       <span class="category-count ${unread === 0 ? "zero" : ""}">${unread}</span>
     `;
     label.addEventListener("click", () => {
-      currentFilter = { category_id: cat.id };
-      document.getElementById("entry-list-title").textContent = cat.title;
-      clearActiveFeed();
-      loadEntries({ category_id: cat.id });
-      setView("list");
+      location.hash = `/category/${cat.id}`;
     });
     section.appendChild(label);
 
@@ -179,12 +232,7 @@ function renderSidebar() {
         ${count > 0 ? `<span class="feed-count">${count}</span>` : ""}
       `;
       item.addEventListener("click", () => {
-        currentFilter = { feed_id: f.id };
-        document.getElementById("entry-list-title").textContent = f.title;
-        clearActiveFeed();
-        item.classList.add("active");
-        loadEntries({ feed_id: f.id });
-        setView("list");
+        location.hash = `/feed/${f.id}`;
       });
       section.appendChild(item);
     }
@@ -253,10 +301,7 @@ function renderEntryItems(entries) {
     `;
 
     item.addEventListener("click", () => {
-      document.querySelectorAll(".entry-item.active").forEach((el) => el.classList.remove("active"));
-      item.classList.add("active");
-      showEntry(entry.id);
-      setView("content");
+      location.hash = `/entry/${entry.id}`;
     });
 
     container.appendChild(item);
