@@ -7,6 +7,8 @@ let feeds = [];
 let currentEntries = [];
 let currentEntry = null;
 let currentFilter = {}; // { feed_id, category_id }
+let totalEntries = 0;
+let loadingEntries = false;
 const app = document.getElementById("app");
 const loginScreen = document.getElementById("login-screen");
 
@@ -197,25 +199,38 @@ function clearActiveFeed() {
 
 // ── Entry List ──────────────────────────────────
 
-async function loadEntries(params) {
-  const qs = new URLSearchParams(params);
-  const res = await apiFetch(`${API}/api/entries?${qs}`);
-  const data = await res.json();
+async function loadEntries(params, append = false) {
+  if (loadingEntries) return;
+  loadingEntries = true;
 
-  currentEntries = data.entries || [];
-  renderEntryList();
+  if (!append) {
+    currentEntries = [];
+    totalEntries = 0;
+    document.getElementById("entries").innerHTML = "";
+  }
+
+  const qs = new URLSearchParams({ ...params, offset: currentEntries.length });
+  try {
+    const res = await apiFetch(`${API}/api/entries?${qs}`);
+    const data = await res.json();
+    const newEntries = data.entries || [];
+    totalEntries = data.total || 0;
+    currentEntries = currentEntries.concat(newEntries);
+    renderEntryItems(newEntries);
+  } finally {
+    loadingEntries = false;
+  }
 }
 
-function renderEntryList() {
+function renderEntryItems(entries) {
   const container = document.getElementById("entries");
-  container.innerHTML = "";
 
   if (currentEntries.length === 0) {
     container.innerHTML = `<div style="padding:24px;color:#999;text-align:center">No entries</div>`;
     return;
   }
 
-  for (const entry of currentEntries) {
+  for (const entry of entries) {
     const item = document.createElement("div");
     item.className = `entry-item${entry.status === "read" ? " read" : ""}`;
     item.dataset.entryId = entry.id;
@@ -247,6 +262,16 @@ function renderEntryList() {
     container.appendChild(item);
   }
 }
+
+// Infinite scroll
+document.getElementById("entries").addEventListener("scroll", (e) => {
+  const el = e.target;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
+    if (currentEntries.length < totalEntries && !loadingEntries) {
+      loadEntries(currentFilter, true);
+    }
+  }
+});
 
 // ── Entry Content ───────────────────────────────
 
