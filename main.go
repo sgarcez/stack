@@ -80,7 +80,10 @@ func main() {
 	mux.HandleFunc("/api/logout", handleLogout)
 	mux.HandleFunc("/api/me", requireAuth(handleMe))
 	mux.HandleFunc("/api/categories", requireAuth(handleCategories))
+	mux.HandleFunc("/api/categories/", requireAuth(handleCategoryByID))
 	mux.HandleFunc("/api/feeds", requireAuth(handleFeeds))
+	mux.HandleFunc("/api/feeds/discover", requireAuth(handleDiscover))
+	mux.HandleFunc("/api/feeds/", requireAuth(handleFeedByID))
 	mux.HandleFunc("/api/entries", requireAuth(handleEntries))
 	mux.HandleFunc("/api/entries/", requireAuth(handleEntry))
 
@@ -91,8 +94,12 @@ func main() {
 	mux.Handle("/fonts/", noCache(http.StripPrefix("/fonts/", http.FileServer(http.FS(fontsContent)))))
 	mux.Handle("/", noCache(http.FileServer(http.FS(frontendContent))))
 
-	log.Println("Listening on :8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	port := os.Getenv("STACK_PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Listening on :%s", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -256,51 +263,174 @@ func handleTheme(w http.ResponseWriter, r *http.Request) {
 
 // ── API handlers ────────────────────────────────
 
-// GET /api/categories
+// GET /api/categories — list; POST /api/categories — create
 func handleCategories(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	client := getClient(r)
-	categories, err := client.CategoriesWithCounters()
-	if err != nil {
-		writeError(w, err.Error(), http.StatusBadGateway)
-		return
+
+	switch r.Method {
+	case http.MethodGet:
+		categories, err := client.CategoriesWithCounters()
+		if err != nil {
+			writeError(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, categories)
+
+	case http.MethodPost:
+		var body struct {
+			Title string `json:"title"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Title == "" {
+			writeError(w, "title required", http.StatusBadRequest)
+			return
+		}
+		cat, err := client.CreateCategory(body.Title)
+		if err != nil {
+			writeError(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, cat)
+
+	default:
+		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
-	writeJSON(w, categories)
 }
 
-// GET /api/feeds
+// PUT /api/categories/{id} — rename; DELETE /api/categories/{id}
+func handleCategoryByID(w http.ResponseWriter, r *http.Request) {
+	client := getClient(r)
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/categories/")
+	catID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, "invalid category id", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var body struct {
+			Title string `json:"title"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Title == "" {
+			writeError(w, "title required", http.StatusBadRequest)
+			return
+		}
+		cat, err := client.UpdateCategory(catID, body.Title)
+		if err != nil {
+			writeError(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, cat)
+
+	case http.MethodDelete:
+		if err := client.DeleteCategory(catID); err != nil {
+			writeError(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, map[string]string{"ok": "true"})
+
+	default:
+		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// GET /api/feeds — list; POST /api/feeds — subscribe
 func handleFeeds(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	client := getClient(r)
+
+	switch r.Method {
+	case http.MethodGet:
+		feeds, err := client.Feeds()
+		if err != nil {
+			writeError(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		counters, err := client.FetchCounters()
+		if err != nil {
+			writeError(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+
+		type feedWithCount struct {
+			*miniflux.Feed
+			UnreadCount int `json:"unread_count"`
+		}
+		result := make([]feedWithCount, len(feeds))
+		for i, f := range feeds {
+			result[i] = feedWithCount{
+				Feed:        f,
+				UnreadCount: counters.UnreadCounters[f.ID],
+			}
+		}
+		writeJSON(w, result)
+
+	case http.MethodPost:
+		var body struct {
+			FeedURL    string `json:"feed_url"`
+			CategoryID int64  `json:"category_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.FeedURL == "" {
+			writeError(w, "feed_url required", http.StatusBadRequest)
+			return
+		}
+		if body.CategoryID == 0 {
+			body.CategoryID = 1 // default category
+		}
+		feedID, err := client.CreateFeed(&miniflux.FeedCreationRequest{
+			FeedURL:    body.FeedURL,
+			CategoryID: body.CategoryID,
+		})
+		if err != nil {
+			writeError(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, map[string]int64{"feed_id": feedID})
+
+	default:
+		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// DELETE /api/feeds/{id}
+func handleFeedByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
 		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	client := getClient(r)
-	feeds, err := client.Feeds()
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/feeds/")
+	feedID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		writeError(w, "invalid feed id", http.StatusBadRequest)
+		return
+	}
+	if err := client.DeleteFeed(feedID); err != nil {
 		writeError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	counters, err := client.FetchCounters()
-	if err != nil {
-		writeError(w, err.Error(), http.StatusBadGateway)
-		return
-	}
+	writeJSON(w, map[string]string{"ok": "true"})
+}
 
-	type feedWithCount struct {
-		*miniflux.Feed
-		UnreadCount int `json:"unread_count"`
+// POST /api/feeds/discover  { "url": "..." }
+func handleDiscover(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-	result := make([]feedWithCount, len(feeds))
-	for i, f := range feeds {
-		result[i] = feedWithCount{
-			Feed:        f,
-			UnreadCount: counters.UnreadCounters[f.ID],
-		}
+	client := getClient(r)
+	var body struct {
+		URL string `json:"url"`
 	}
-	writeJSON(w, result)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.URL == "" {
+		writeError(w, "url required", http.StatusBadRequest)
+		return
+	}
+	subs, err := client.Discover(body.URL)
+	if err != nil {
+		writeError(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, subs)
 }
 
 // GET /api/entries?feed_id=X&category_id=X&status=unread&limit=50&offset=0

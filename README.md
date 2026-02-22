@@ -28,6 +28,7 @@ All configuration is via environment variables (or `.env` file):
 | Variable | Required | Description |
 |---|---|---|
 | `MINIFLUX_URL` | Yes | URL of your Miniflux instance |
+| `STACK_PORT` | No | Listen port. Defaults to `8080` |
 | `STACK_SECRET` | No | 32 hex chars for cookie encryption. If unset, sessions are lost on restart |
 | `STACK_THEME` | No | Theme name (`default`, `dark`). Defaults to `default` |
 

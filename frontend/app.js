@@ -95,6 +95,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("btn-toggle-read").addEventListener("click", toggleReadStatus);
   document.getElementById("btn-toggle-star").addEventListener("click", toggleStarred);
 
+  // Settings panel
+  document.getElementById("btn-settings").addEventListener("click", openSettings);
+  document.getElementById("btn-close-settings").addEventListener("click", closeSettings);
+  document.getElementById("btn-add-feed").addEventListener("click", addFeed);
+  document.getElementById("btn-add-category").addEventListener("click", addCategory);
+
   document.addEventListener("keydown", (e) => {
     // Don't hijack key events when focus is in an input
     if (e.target.matches("input, textarea, [contenteditable]")) return;
@@ -333,4 +339,160 @@ function esc(str) {
   const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
+}
+
+// ── Settings Panel ───────────────────────────────
+
+function openSettings() {
+  document.getElementById("entry-content").classList.add("hidden");
+  document.getElementById("settings-panel").classList.remove("hidden");
+  loadSettingsData();
+}
+
+function closeSettings() {
+  document.getElementById("settings-panel").classList.add("hidden");
+  document.getElementById("entry-content").classList.remove("hidden");
+}
+
+async function loadSettingsData() {
+  try {
+    const [cats, feedList] = await Promise.all([
+      apiFetch(`${API}/api/categories`).then((r) => r.json()),
+      apiFetch(`${API}/api/feeds`).then((r) => r.json()),
+    ]);
+
+    // Populate category dropdown for add-feed
+    const select = document.getElementById("add-feed-category");
+    select.innerHTML = "";
+    for (const cat of cats) {
+      const opt = document.createElement("option");
+      opt.value = cat.id;
+      opt.textContent = cat.title;
+      select.appendChild(opt);
+    }
+
+    // Render feed list
+    const feedContainer = document.getElementById("settings-feed-list");
+    feedContainer.innerHTML = "";
+    for (const f of feedList) {
+      const row = document.createElement("div");
+      row.className = "settings-item";
+      row.innerHTML = `
+        <span class="settings-item-name">${esc(f.title)}</span>
+        <span class="settings-item-meta">${esc(f.category?.title || "")}</span>
+        <button data-feed-id="${f.id}" title="Remove">✕</button>
+      `;
+      row.querySelector("button").addEventListener("click", () => deleteFeed(f.id, f.title));
+      feedContainer.appendChild(row);
+    }
+
+    // Render category list
+    const catContainer = document.getElementById("settings-category-list");
+    catContainer.innerHTML = "";
+    for (const cat of cats) {
+      const row = document.createElement("div");
+      row.className = "settings-item";
+      row.innerHTML = `
+        <span class="settings-item-name">${esc(cat.title)}</span>
+        <button data-cat-id="${cat.id}" title="Remove">✕</button>
+      `;
+      row.querySelector("button").addEventListener("click", () => deleteCategory(cat.id, cat.title));
+      catContainer.appendChild(row);
+    }
+  } catch (e) {
+    console.error("Failed to load settings data", e);
+  }
+}
+
+async function addFeed() {
+  const urlInput = document.getElementById("add-feed-url");
+  const catSelect = document.getElementById("add-feed-category");
+  const statusEl = document.getElementById("add-feed-status");
+  const rawURL = urlInput.value.trim();
+  if (!rawURL) return;
+
+  statusEl.textContent = "Discovering feed...";
+  let feedURL = rawURL;
+
+  try {
+    // Try to discover a feed URL from the given website
+    const discoverRes = await apiFetch(`${API}/api/feeds/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: rawURL }),
+    });
+    if (discoverRes.ok) {
+      const subs = await discoverRes.json();
+      if (subs && subs.length > 0) {
+        feedURL = subs[0].url;
+        statusEl.textContent = `Found: ${feedURL}`;
+      }
+    }
+  } catch { /* ignore discovery errors, try direct URL */ }
+
+  statusEl.textContent = "Adding...";
+  try {
+    const res = await apiFetch(`${API}/api/feeds`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feed_url: feedURL, category_id: Number(catSelect.value) }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      statusEl.textContent = err.error || "Failed to add feed";
+      return;
+    }
+    statusEl.textContent = "Added!";
+    urlInput.value = "";
+    await loadSettingsData();
+    await loadSidebar();
+  } catch {
+    statusEl.textContent = "Failed to add feed";
+  }
+}
+
+async function deleteFeed(feedID, title) {
+  if (!confirm(`Remove feed "${title}"?`)) return;
+  try {
+    await apiFetch(`${API}/api/feeds/${feedID}`, { method: "DELETE" });
+    await loadSettingsData();
+    await loadSidebar();
+  } catch (e) {
+    console.error("Failed to delete feed", e);
+  }
+}
+
+async function addCategory() {
+  const input = document.getElementById("add-category-title");
+  const title = input.value.trim();
+  if (!title) return;
+
+  try {
+    const res = await apiFetch(`${API}/api/categories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || "Failed to create category");
+      return;
+    }
+    input.value = "";
+    await loadSettingsData();
+    await loadSidebar();
+  } catch {
+    alert("Failed to create category");
+  }
+}
+
+async function deleteCategory(catID, title) {
+  if (!confirm(`Delete category "${title}"? Feeds will be moved to the default category.`)) return;
+  try {
+    await apiFetch(`${API}/api/categories/${catID}`, { method: "DELETE" });
+    await loadSettingsData();
+    await loadSidebar();
+  } catch (e) {
+    console.error("Failed to delete category", e);
+  }
 }

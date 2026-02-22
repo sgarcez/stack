@@ -27,7 +27,10 @@
         <button id="btn-all-entries" title="All entries">All</button>
       </header>
       <nav id="feed-tree"></nav>
-      <button id="btn-logout" class="sidebar-logout">Sign out</button>
+      <div class="sidebar-footer">
+        <button id="btn-settings" class="sidebar-footer-btn" title="Settings">⚙</button>
+        <button id="btn-logout" class="sidebar-footer-btn" title="Sign out">Sign out</button>
+      </div>
     </aside>
 
     <main id="entry-list">
@@ -57,6 +60,36 @@
         <div id="entry-body"></div>
       </div>
     </article>
+
+    <div id="settings-panel" class="hidden">
+      <header class="settings-header">
+        <h2>Settings</h2>
+        <button id="btn-close-settings">✕</button>
+      </header>
+      <div class="settings-body">
+        <section class="settings-section">
+          <h3>Add feed</h3>
+          <div class="settings-row">
+            <input type="text" id="add-feed-url" placeholder="Feed or website URL">
+            <select id="add-feed-category"></select>
+            <button id="btn-add-feed">Add</button>
+          </div>
+          <p id="add-feed-status" class="settings-status"></p>
+        </section>
+        <section class="settings-section">
+          <h3>Feeds</h3>
+          <div id="settings-feed-list"></div>
+        </section>
+        <section class="settings-section">
+          <h3>Categories</h3>
+          <div class="settings-row">
+            <input type="text" id="add-category-title" placeholder="New category name">
+            <button id="btn-add-category">Add</button>
+          </div>
+          <div id="settings-category-list"></div>
+        </section>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
