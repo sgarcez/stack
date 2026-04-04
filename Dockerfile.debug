@@ -1,0 +1,27 @@
+FROM golang:1.26-alpine AS builder
+
+RUN apk add --no-cache git
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+# Install delve
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+COPY . .
+
+# Build with debug info (no inlining, no optimisations)
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -gcflags="all=-N -l" -o /stack .
+
+FROM golang:1.26-alpine
+
+COPY --from=builder /go/bin/dlv /dlv
+COPY --from=builder /stack /stack
+
+EXPOSE 8080
+EXPOSE 2345
+
+ENTRYPOINT ["/dlv", "--listen=:2345", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/stack"]

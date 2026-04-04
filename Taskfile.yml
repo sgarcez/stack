@@ -2,6 +2,14 @@ version: "3"
 
 dotenv: [".env"]
 
+vars:
+  IMAGE: stack
+  IMAGE_DEBUG: stack-debug
+  CONTAINER: stack
+  CONTAINER_DEBUG: stack-debug
+  APP_PORT: '{{.STACK_PORT | default "8080"}}'
+  DLV_PORT: "2345"
+
 tasks:
   dev:
     desc: Run Stack
@@ -18,3 +26,45 @@ tasks:
     cmds:
       - task: build
       - ./stack
+
+  # ── Container (production) ───────────────────────────────────────────────
+
+  container:build:
+    desc: Build the production container image
+    cmds:
+      - podman build -t {{.IMAGE}} .
+
+  container:run:
+    desc: Run the production container (reads .env)
+    cmds:
+      - podman run --rm --name {{.CONTAINER}}
+          --env-file .env
+          -p {{.APP_PORT}}:{{.APP_PORT}}
+          {{.IMAGE}}
+
+  container:stop:
+    desc: Stop the production container
+    cmds:
+      - podman stop {{.CONTAINER}} || true
+
+  # ── Container (debug) ────────────────────────────────────────────────────
+
+  container:build-debug:
+    desc: Build the debug container image (with dlv)
+    cmds:
+      - podman build -f Dockerfile.debug -t {{.IMAGE_DEBUG}} .
+
+  container:debug:
+    desc: Run the debug container with dlv listening on port {{.DLV_PORT}}
+    cmds:
+      - podman run --rm --name {{.CONTAINER_DEBUG}}
+          --env-file .env
+          -p {{.APP_PORT}}:{{.APP_PORT}}
+          -p {{.DLV_PORT}}:{{.DLV_PORT}}
+          --security-opt seccomp=unconfined
+          {{.IMAGE_DEBUG}}
+
+  container:stop-debug:
+    desc: Stop the debug container
+    cmds:
+      - podman stop {{.CONTAINER_DEBUG}} || true
