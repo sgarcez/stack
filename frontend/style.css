@@ -116,6 +116,8 @@ body {
     font-size: 16px;
     font-weight: 700;
     letter-spacing: -0.02em;
+    cursor: pointer;
+    user-select: none;
 }
 
 .sidebar-header button {
@@ -160,9 +162,7 @@ body {
     color: var(--text);
 }
 
-#btn-settings {
-    font-size: 16px;
-}
+
 
 /* ── Settings Panel ─────────────────────────── */
 
@@ -253,6 +253,91 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     min-height: 16px;
+}
+
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.settings-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent);
+}
+
+/* ── Large Text Mode ───────────────────────── */
+
+body.large-text {
+    font-size: 17px;
+}
+
+body.large-text .entry-item-title {
+    font-size: 15px;
+}
+
+body.large-text .entry-item-meta {
+    font-size: 13px;
+}
+
+body.large-text #entry-body {
+    font-size: 18px;
+    line-height: 1.8;
+}
+
+body.large-text #entry-title {
+    font-size: 26px;
+}
+
+body.large-text #entry-meta {
+    font-size: 14px;
+}
+
+body.large-text .feed-item {
+    font-size: 15px;
+}
+
+body.large-text .category-label {
+    font-size: 12px;
+}
+
+/* ── Extra Large Text Mode ─────────────────── */
+
+body.extra-large-text {
+    font-size: 20px;
+}
+
+body.extra-large-text .entry-item-title {
+    font-size: 18px;
+}
+
+body.extra-large-text .entry-item-meta {
+    font-size: 15px;
+}
+
+body.extra-large-text #entry-body {
+    font-size: 21px;
+    line-height: 1.8;
+}
+
+body.extra-large-text #entry-title {
+    font-size: 30px;
+}
+
+body.extra-large-text #entry-meta {
+    font-size: 16px;
+}
+
+body.extra-large-text .feed-item {
+    font-size: 18px;
+}
+
+body.extra-large-text .category-label {
+    font-size: 14px;
 }
 
 .settings-item {
@@ -360,6 +445,43 @@ body {
     color: var(--text-dim);
     margin-left: 8px;
     flex-shrink: 0;
+}
+
+/* ── Collapsed Sidebar ──────────────────────────── */
+
+#sidebar {
+    transition: width 0.2s ease, min-width 0.2s ease;
+}
+
+#sidebar.collapsed {
+    width: 48px;
+    min-width: 48px;
+}
+
+#sidebar.collapsed .sidebar-header {
+    justify-content: center;
+    padding: 12px 0;
+}
+
+#sidebar.collapsed .sidebar-header button {
+    display: none;
+}
+
+#sidebar.collapsed #feed-tree {
+    display: none;
+}
+
+#sidebar.collapsed .sidebar-footer {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 4px;
+    align-items: center;
+}
+
+#sidebar.collapsed .sidebar-footer-btn {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 11px;
 }
 
 /* ── Entry List ──────────────────────────────── */
@@ -624,5 +746,20 @@ body {
 
     #entry-view {
         padding: 16px;
+    }
+
+    #settings-panel {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        min-width: 100%;
+        z-index: 10;
+        background: var(--bg);
+    }
+
+    /* Disable sidebar collapse on mobile */
+    #sidebar.collapsed {
+        width: 100%;
+        min-width: 100%;
     }
 }

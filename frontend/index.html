@@ -5,6 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stack — RSS Reader</title>
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f5f5f5'/><text x='16' y='24' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='700' font-size='22' fill='%231a1a1a'>S</text></svg>">
   <link rel="stylesheet" href="/theme.css?v=__VERSION__">
   <link rel="stylesheet" href="style.css?v=__VERSION__">
 </head>
@@ -31,7 +33,7 @@
       </header>
       <nav id="feed-tree"></nav>
       <div class="sidebar-footer">
-        <button id="btn-settings" class="sidebar-footer-btn" title="Settings">⚙</button>
+        <button id="btn-settings" class="sidebar-footer-btn" title="Settings">Settings</button>
         <button id="btn-logout" class="sidebar-footer-btn" title="Sign out">Sign out</button>
       </div>
     </aside>
@@ -70,6 +72,17 @@
         <button id="btn-close-settings">✕</button>
       </header>
       <div class="settings-body">
+        <section class="settings-section">
+          <h3>Display</h3>
+          <div class="settings-row" style="align-items: center;">
+            <label for="select-text-size" style="font-size: 13px;">Text size</label>
+            <select id="select-text-size">
+              <option value="normal">Normal</option>
+              <option value="large">Large</option>
+              <option value="extra-large">Extra Large</option>
+            </select>
+          </div>
+        </section>
         <section class="settings-section">
           <h3>Add feed</h3>
           <div class="settings-row">

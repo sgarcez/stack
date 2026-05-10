@@ -87,6 +87,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     location.hash = "/";
   });
 
+  // Sidebar collapse toggle
+  document.querySelector(".sidebar-header h1").addEventListener("click", () => {
+    const sidebar = document.getElementById("sidebar");
+    const h1 = sidebar.querySelector("h1");
+    sidebar.classList.toggle("collapsed");
+    h1.textContent = sidebar.classList.contains("collapsed") ? "S" : "Stack";
+  });
+
   document.getElementById("btn-back-feeds").addEventListener("click", () => setView("sidebar"));
   document.getElementById("btn-back-entries").addEventListener("click", () => setView("list"));
 
@@ -100,6 +108,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("btn-close-settings").addEventListener("click", closeSettings);
   document.getElementById("btn-add-feed").addEventListener("click", addFeed);
   document.getElementById("btn-add-category").addEventListener("click", addCategory);
+
+  // Text size preference
+  const selectTextSize = document.getElementById("select-text-size");
+  
+  // Handle backwards compatibility for old setting
+  if (!localStorage.getItem("stack-text-size") && localStorage.getItem("stack-large-text") === "1") {
+    localStorage.setItem("stack-text-size", "large");
+  }
+  
+  const savedTextSize = localStorage.getItem("stack-text-size") || "normal";
+  selectTextSize.value = savedTextSize;
+  
+  if (savedTextSize === "large") {
+    document.body.classList.add("large-text");
+  } else if (savedTextSize === "extra-large") {
+    document.body.classList.add("extra-large-text");
+  }
+
+  selectTextSize.addEventListener("change", () => {
+    document.body.classList.remove("large-text", "extra-large-text");
+    if (selectTextSize.value === "large") {
+      document.body.classList.add("large-text");
+    } else if (selectTextSize.value === "extra-large") {
+      document.body.classList.add("extra-large-text");
+    }
+    localStorage.setItem("stack-text-size", selectTextSize.value);
+  });
 
   document.addEventListener("keydown", (e) => {
     // Don't hijack key events when focus is in an input
@@ -421,15 +456,23 @@ function esc(str) {
 
 // ── Settings Panel ───────────────────────────────
 
+let previousView = null;
+
 function openSettings() {
+  previousView = app.dataset.view || null;
   document.getElementById("entry-content").classList.add("hidden");
   document.getElementById("settings-panel").classList.remove("hidden");
+  setView("settings");
   loadSettingsData();
 }
 
 function closeSettings() {
   document.getElementById("settings-panel").classList.add("hidden");
   document.getElementById("entry-content").classList.remove("hidden");
+  if (previousView) {
+    setView(previousView);
+    previousView = null;
+  }
 }
 
 async function loadSettingsData() {
