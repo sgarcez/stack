@@ -7,3 +7,6 @@ stack-linux*
 
 # macOS
 .DS_Store
+
+# Local overrides
+Taskfile.local.yml

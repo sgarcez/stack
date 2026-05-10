@@ -2,6 +2,11 @@ version: "3"
 
 dotenv: [".env"]
 
+includes:
+  local:
+    taskfile: Taskfile.local.yml
+    optional: true
+
 vars:
   IMAGE: stack
   IMAGE_DEBUG: stack-debug
