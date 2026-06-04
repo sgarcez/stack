@@ -11,6 +11,8 @@ A lightweight web client for [Miniflux](https://miniflux.app). Single Go binary 
 - Themeable via CSS (ships with `default` and `dark`)
 - Sessions persist across restarts (encrypted cookies)
 
+<img width="1434" height="578" alt="Screenshot 2026-06-04 at 11 36 57" src="https://github.com/user-attachments/assets/3edcd19e-74f2-4d8f-a355-1a75caddd254" />
+
 ## Quick Start
 
 ```bash
