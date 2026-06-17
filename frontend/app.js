@@ -102,6 +102,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("btn-toggle-read").addEventListener("click", toggleReadStatus);
   document.getElementById("btn-toggle-star").addEventListener("click", toggleStarred);
+  document.getElementById("btn-fullscreen").addEventListener("click", toggleFullscreenReader);
 
   // Settings panel
   document.getElementById("btn-settings").addEventListener("click", openSettings);
