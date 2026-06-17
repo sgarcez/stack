@@ -111,6 +111,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Text size preference
   const selectTextSize = document.getElementById("select-text-size");
+  const entryContent = document.getElementById("entry-content");
   
   // Handle backwards compatibility for old setting
   if (!localStorage.getItem("stack-text-size") && localStorage.getItem("stack-large-text") === "1") {
@@ -119,26 +120,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   
   const savedTextSize = localStorage.getItem("stack-text-size") || "normal";
   selectTextSize.value = savedTextSize;
-  
-  if (savedTextSize === "large") {
-    document.body.classList.add("large-text");
-  } else if (savedTextSize === "extra-large") {
-    document.body.classList.add("extra-large-text");
-  }
+  applyTextSize(savedTextSize);
 
   selectTextSize.addEventListener("change", () => {
-    document.body.classList.remove("large-text", "extra-large-text");
-    if (selectTextSize.value === "large") {
-      document.body.classList.add("large-text");
-    } else if (selectTextSize.value === "extra-large") {
-      document.body.classList.add("extra-large-text");
-    }
+    applyTextSize(selectTextSize.value);
     localStorage.setItem("stack-text-size", selectTextSize.value);
   });
 
   document.addEventListener("keydown", (e) => {
     // Don't hijack key events when focus is in an input
-    if (e.target.matches("input, textarea, [contenteditable]")) return;
+    if (e.target.matches("input, textarea, select, [contenteditable]")) return;
+
+    if (e.key === "Escape") {
+      if (!document.getElementById("settings-panel").classList.contains("hidden")) {
+        closeSettings();
+      } else if (app.classList.contains("fullscreen-reader")) {
+        toggleFullscreenReader();
+      }
+      return;
+    }
+    if (e.key === "f") {
+      toggleFullscreenReader();
+      return;
+    }
     if (e.key === "j" || e.key === "k") {
       e.preventDefault();
       selectEntryByOffset(e.key === "j" ? 1 : -1);
@@ -452,6 +456,17 @@ function esc(str) {
   const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
+}
+
+function applyTextSize(size) {
+  const el = document.getElementById("entry-content");
+  el.classList.remove("large-text", "extra-large-text");
+  if (size === "large") el.classList.add("large-text");
+  else if (size === "extra-large") el.classList.add("extra-large-text");
+}
+
+function toggleFullscreenReader() {
+  app.classList.toggle("fullscreen-reader");
 }
 
 // ── Settings Panel ───────────────────────────────

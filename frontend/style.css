@@ -270,74 +270,50 @@ body {
     accent-color: var(--accent);
 }
 
-/* ── Large Text Mode ───────────────────────── */
+/* ── Large Text Mode (reader pane only) ────── */
 
-body.large-text {
-    font-size: 17px;
-}
-
-body.large-text .entry-item-title {
-    font-size: 15px;
-}
-
-body.large-text .entry-item-meta {
-    font-size: 13px;
-}
-
-body.large-text #entry-body {
+#entry-content.large-text #entry-body {
     font-size: 18px;
     line-height: 1.8;
 }
 
-body.large-text #entry-title {
+#entry-content.large-text #entry-title {
     font-size: 26px;
 }
 
-body.large-text #entry-meta {
+#entry-content.large-text #entry-meta {
     font-size: 14px;
 }
 
-body.large-text .feed-item {
-    font-size: 15px;
-}
+/* ── Extra Large Text Mode (reader pane only) ─ */
 
-body.large-text .category-label {
-    font-size: 12px;
-}
-
-/* ── Extra Large Text Mode ─────────────────── */
-
-body.extra-large-text {
-    font-size: 20px;
-}
-
-body.extra-large-text .entry-item-title {
-    font-size: 18px;
-}
-
-body.extra-large-text .entry-item-meta {
-    font-size: 15px;
-}
-
-body.extra-large-text #entry-body {
+#entry-content.extra-large-text #entry-body {
     font-size: 21px;
-    line-height: 1.8;
+    line-height: 1.9;
 }
 
-body.extra-large-text #entry-title {
+#entry-content.extra-large-text #entry-title {
     font-size: 30px;
 }
 
-body.extra-large-text #entry-meta {
+#entry-content.extra-large-text #entry-meta {
     font-size: 16px;
 }
 
-body.extra-large-text .feed-item {
-    font-size: 18px;
+/* ── Fullscreen Reader Mode ────────────────── */
+
+#app.fullscreen-reader #sidebar,
+#app.fullscreen-reader #entry-list {
+    display: none;
 }
 
-body.extra-large-text .category-label {
-    font-size: 14px;
+#app.fullscreen-reader #entry-content {
+    flex: 1;
+}
+
+#app.fullscreen-reader #entry-view {
+    max-width: 720px;
+    margin: 0 auto;
 }
 
 .settings-item {
