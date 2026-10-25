@@ -37,6 +37,12 @@ function showApp() {
   app.classList.remove("hidden");
 }
 
+function setCurrentUser(username) {
+  const el = document.getElementById("current-user");
+  el.textContent = username || "";
+  el.title = username ? `Signed in as ${username}` : "";
+}
+
 // ── Init ────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -44,6 +50,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const res = await fetch(`${API}/api/me`);
     if (res.ok) {
+      const me = await res.json();
+      // Signed in by the reverse proxy: logging out of Stack wouldn't end that session
+      if (me.proxy) document.getElementById("btn-logout").classList.add("hidden");
+      setCurrentUser(me.username);
       await startApp();
     } else {
       showLogin();
@@ -70,6 +80,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         errorEl.textContent = "Invalid username or password";
         return;
       }
+      setCurrentUser((await res.json()).username);
       document.getElementById("login-form").reset();
       await startApp();
     } catch {

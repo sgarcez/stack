@@ -162,6 +162,14 @@ body {
     color: var(--text);
 }
 
+.sidebar-footer-user {
+    color: var(--text-dim);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 
 
 /* ── Settings Panel ─────────────────────────── */
@@ -452,6 +460,10 @@ body {
     gap: 8px;
     padding: 8px 4px;
     align-items: center;
+}
+
+#sidebar.collapsed .sidebar-footer-user {
+    display: none;
 }
 
 #sidebar.collapsed .sidebar-footer-btn {

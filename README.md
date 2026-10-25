@@ -33,6 +33,10 @@ All configuration is via environment variables (or `.env` file):
 | `STACK_PORT` | No | Listen port. Defaults to `8080` |
 | `STACK_SECRET` | No | 32 hex chars for cookie encryption. If unset, sessions are lost on restart |
 | `STACK_THEME` | No | Theme name (`default`, `dark`). Defaults to `default` |
+| `STACK_TRUSTED_PROXIES` | No | Comma-separated IPs of reverse proxies whose `Remote-User` header is trusted (e.g. behind Authelia forward auth) |
+| `STACK_API_KEYS` | No | Comma-separated `user:miniflux-api-key` pairs used for proxy-authenticated users |
+
+Requests from a trusted proxy carrying `Remote-User` for a user listed in `STACK_API_KEYS` skip the login screen. Everyone else, including direct access to Stack's port, still signs in with Miniflux credentials.
 
 Generate a secret:
 ```bash

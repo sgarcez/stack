@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -26,12 +27,17 @@ var frontendFS embed.FS
 var themesFS embed.FS
 
 var (
-	minifluxURL string
-	theme       []byte
-	aesGCM      cipher.AEAD
+	minifluxURL    string
+	theme          []byte
+	aesGCM         cipher.AEAD
+	trustedProxies map[string]bool
+	proxyAPIKeys   map[string]string
 )
 
-const sessionCookie = "stack_session"
+const (
+	sessionCookie   = "stack_session"
+	proxyUserHeader = "Remote-User"
+)
 
 func main() {
 	minifluxURL = os.Getenv("MINIFLUX_URL")
@@ -59,6 +65,25 @@ func main() {
 	aesGCM, err = cipher.NewGCM(block)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Optional reverse-proxy auth: requests coming directly from a trusted proxy
+	// with a Remote-User header use that user's Miniflux API key, no login needed.
+	trustedProxies = map[string]bool{}
+	for _, ip := range strings.Split(os.Getenv("STACK_TRUSTED_PROXIES"), ",") {
+		if ip = strings.TrimSpace(ip); ip != "" {
+			trustedProxies[ip] = true
+		}
+	}
+	proxyAPIKeys = map[string]string{}
+	for _, pair := range strings.Split(os.Getenv("STACK_API_KEYS"), ",") {
+		user, key, ok := strings.Cut(strings.TrimSpace(pair), ":")
+		if ok && user != "" && key != "" {
+			proxyAPIKeys[user] = key
+		}
+	}
+	if len(trustedProxies) > 0 {
+		log.Printf("Proxy auth enabled: %d trusted proxy address(es), %d user(s)", len(trustedProxies), len(proxyAPIKeys))
 	}
 
 	themeName := os.Getenv("STACK_THEME")
@@ -144,8 +169,24 @@ func decrypt(encoded string) (string, error) {
 	return string(plaintext), nil
 }
 
-// getClient decrypts credentials from the session cookie and returns a miniflux client.
+// proxyUser returns the Remote-User header if the request came directly from a
+// trusted reverse proxy, or "" otherwise (so the header can't be spoofed by
+// clients reaching Stack's port directly).
+func proxyUser(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || !trustedProxies[host] {
+		return ""
+	}
+	return r.Header.Get(proxyUserHeader)
+}
+
+// getClient returns a miniflux client for the proxy-authenticated user's API key,
+// or else from the credentials encrypted in the session cookie.
 func getClient(r *http.Request) *miniflux.Client {
+	if key := proxyAPIKeys[proxyUser(r)]; key != "" {
+		return miniflux.NewClient(minifluxURL, key)
+	}
+
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil {
 		return nil
@@ -252,7 +293,11 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	writeJSON(w, map[string]string{"username": user.Username})
+	resp := map[string]string{"username": user.Username}
+	if proxyAPIKeys[proxyUser(r)] != "" {
+		resp["proxy"] = "true"
+	}
+	writeJSON(w, resp)
 }
 
 // ── Utility ─────────────────────────────────────
